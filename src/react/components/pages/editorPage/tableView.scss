@@ -29,6 +29,12 @@
     }
 }
 
+.table-view-modal-title{
+    position: fixed;
+    left: 2rem;
+    top:10px;
+}
+
 .table-view-scrollable-content {
     margin: 2.25rem 1rem;
     max-height: 65vh;

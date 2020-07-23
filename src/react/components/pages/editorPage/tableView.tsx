@@ -1,5 +1,5 @@
+import { ContextualMenu, Customizer, FontIcon, ICustomizations, IDragOptions, Modal } from "@fluentui/react";
 import * as React from "react";
-import { ICustomizations, Customizer, ContextualMenu, IDragOptions, Modal, FontIcon } from "@fluentui/react";
 import { getDarkGreyTheme } from "../../../../common/themes";
 import "./tableView.scss";
 
@@ -20,7 +20,7 @@ export const TableView: React.FunctionComponent<ITableViewProps> = (props) => {
         moveMenuItemText: "Move",
         closeMenuItemText: "Close",
         menu: ContextualMenu,
-      };
+    };
 
     function getTableBody() {
         const table = props.tableToView;
@@ -44,22 +44,27 @@ export const TableView: React.FunctionComponent<ITableViewProps> = (props) => {
         }
         return tableBody;
     }
-
+    const table = props.tableToView;
+    const titleContent = `table details for rows: ${table['rows'] || 0} columns: ${table['columns'] || 0}`;
     return (
         <Customizer {...dark}>
             <Modal
                 titleAriaId={"Table view"}
                 isOpen={props.tableToView !== null}
-                isModeless={true}
+                isModeless={false}
+                isDarkOverlay={false}
                 dragOptions={dragOptions}
                 onDismiss={props.handleTableViewClose}
                 scrollableContentClassName={"table-view-scrollable-content"}
             >
-            <FontIcon
-                className="close-modal"
-                role="button"
-                iconName="Cancel"
-                onClick={props.handleTableViewClose}
+                <span className="modal-title table-view-modal-title">
+                    {titleContent}
+                </span>
+                <FontIcon
+                    className="close-modal"
+                    role="button"
+                    iconName="Cancel"
+                    onClick={props.handleTableViewClose}
                 />
                 <div className="table-view-container">
                     <table className="viewed-table">
