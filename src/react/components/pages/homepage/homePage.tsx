@@ -92,7 +92,7 @@ export default class HomePage extends React.Component<IHomePageProps, IHomePageS
                             <a ref={this.newProjectRef}
                                 id="home_newProject"
                                 href="#" onClick={this.createNewProject} className="p-5 new-project skipToMainContent" role="button">
-                                <FontIcon iconName="AddTo" className="icon-9x"  />
+                                <FontIcon iconName="AddTo" className="icon-9x" />
                                 <div>{strings.homePage.newProject}</div>
                             </a>
                         </li>
@@ -156,9 +156,16 @@ export default class HomePage extends React.Component<IHomePageProps, IHomePageS
     }
 
     private loadSelectedProject = async (project: IProject, sharedToken?: {}) => {
-        const loadedProject = await this.props.actions.loadProject(project, sharedToken);
-        if (loadedProject !== null) {
-            this.props.history.push(`/projects/${project.id}/edit`);
+        try {
+            const loadedProject = await this.props.actions.loadProject(project, sharedToken);
+            if (loadedProject !== null) {
+                this.props.history.push(`/projects/${project.id}/edit`);
+            }
+        } catch (error) {
+            if (error instanceof AppError) {
+                console.error(error);
+                toast.error(`Project [${project.name}] ${error.message}`, { autoClose: 3000 });
+            }
         }
     }
 
