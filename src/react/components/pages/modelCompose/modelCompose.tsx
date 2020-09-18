@@ -29,7 +29,7 @@ import { IColumn,
          ScrollbarVisibility,
          IDetailsRowProps } from "@fluentui/react";
 import "./modelCompose.scss";
-import { strings } from "../../../../common/strings";
+import { strings, interpolate } from "../../../../common/strings";
 import { getDarkGreyTheme, getDefaultDarkTheme } from "../../../../common/themes";
 import { ModelComposeCommandBar } from "./composeCommandBar";
 import { bindActionCreators } from "redux";
@@ -40,6 +40,7 @@ import ComposeModelView from "./composeModelView";
 import { ViewSelection } from "./viewSelection";
 import PreventLeaving from "../../common/preventLeaving/preventLeaving";
 import allSettled from "promise.allsettled";
+import { toast } from 'react-toastify';
 
 export interface IModelComposePageProps extends RouteComponentProps, React.Props<ModelComposePage> {
     recentProjects: IProject[];
@@ -67,15 +68,21 @@ export interface IModelComposePageState {
 }
 
 export interface IModel {
-    key: string;
-    modelId: string;
-    modelName: string;
-    createdDateTime: string;
-    lastUpdatedDateTime: string;
-    status: string;
     attributes?: {
         isComposed: boolean;
     };
+    key?: string;
+    modelId: string;
+    modelName: string;
+    createdDateTime: string;
+    lastUpdatedDateTime?: string;
+    status?: string;
+    composedTrainResults?: [];
+}
+export interface IComposedModelInfo {
+    id: string ,
+    name?: string,
+    createdDateTime?: string;
 }
 
 function mapStateToProps(state: IApplicationState) {
@@ -164,8 +171,8 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
             },
             {
                 key: "column6",
-                name: strings.modelCompose.column.lastupdated.headerName,
-                fieldName: strings.modelCompose.column.lastupdated.fieldName,
+                name: strings.modelCompose.column.lastUpdated.headerName,
+                fieldName: strings.modelCompose.column.lastUpdated.fieldName,
                 minWidth: 175,
                 maxWidth: 175,
                 isResizable: true,
@@ -214,7 +221,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
         if (this.props.project) {
             this.getModelList();
         }
-        document.title = strings.modelCompose.title + "-" + strings.appName;
+        document.title = strings.modelCompose.title + " - " + strings.appName;
     }
 
     public componentDidUpdate(prevProps, prevState) {
@@ -302,6 +309,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
                                             isHeaderVisible={true}
                                             selection={this.selection}
                                             selectionPreservedOnEmptyClick={true}
+                                            onItemInvoked={this.onItemInvoked}
                                             onRenderDetailsHeader={onRenderDetailsHeader}
                                             onRenderRow={this.onRenderRow}>
                                         </DetailsList>
@@ -332,9 +340,10 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
                             </ScrollablePane>
                         </div>
                         <ComposeModelView
-                                ref={this.composeModalRef}
-                                onComposeConfirm={this.onComposeConfirm}
-                                />
+                            ref={this.composeModalRef}
+                            onComposeConfirm={this.onComposeConfirm}
+                            addToRecentModels={this.addToRecentModels}
+                        />
                     </Customizer>
                 </Fabric>
                 <PreventLeaving
@@ -348,6 +357,47 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
         return item.key;
     }
 
+    private onItemInvoked = async (model: IModel, index: number, ev: Event) => {
+        const composedModelInfo: IModel = {
+            modelId: model.modelId,
+            modelName: model.modelName,
+            createdDateTime: model.createdDateTime,
+            composedTrainResults: []
+        };
+        this.composeModalRef.current.open([], false, false);
+
+        if (model.attributes.isComposed) {
+            const inclModels = model.composedTrainResults ?
+                model.composedTrainResults
+                : (await this.getModelByURl(constants.apiModelsPath + "/" + model.modelId)).composedTrainResults;
+
+            for (const i of Object.keys(inclModels)) {
+                let _model: IModel;
+                let modelInfo: IComposedModelInfo;
+                try {
+                    _model = await this.getModelByURl(constants.apiModelsPath + "/" + inclModels[i].modelId);
+                    modelInfo = {
+                        id: _model.modelId,
+                        name: _model.modelName,
+                        createdDateTime: _model.createdDateTime,
+                    };
+                    composedModelInfo.composedTrainResults.push(modelInfo as never);
+                } catch (e) {
+                    modelInfo = {
+                        id: inclModels[i].modelId,
+                        name: strings.modelCompose.errors.noInfoAboutModel,
+                    };
+                    composedModelInfo.composedTrainResults.push(modelInfo as never);
+                }
+            }
+            this.composeModalRef.current.getItems(composedModelInfo);
+        } else if (model.status === constants.statusCodeReady) {
+            this.composeModalRef.current.getItems(composedModelInfo);
+        }
+    }
+
+    private returnReadyModels = (modelList) => modelList.filter((model: IModel) => model.status === constants.statusCodeReady);
+
     private getModelList = async () => {
         try {
             this.setState({
@@ -360,7 +410,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
             }
 
             const res = await this.getResponse();
-            let models = res.data.modelList;
+            let models = this.returnReadyModels(res.data.modelList)
             const link = res.data.nextLink;
 
             const recentModelIds = this.getRecentModelIds(recentModels);
@@ -392,7 +442,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
             composedTrainResults: composedModel["composedTrainResults"]
         } as IRecentModel;
         const recentModelRecords: IRecentModel[] = this.props.project.recentModelRecords ?
-                                                   [...this.props.project.recentModelRecords] : [];
+            [...this.props.project.recentModelRecords] : [];
         recentModelRecords.unshift(newTrainRecord);
         if (recentModelRecords.length > constants.recentModelRecordsCount) {
             recentModelRecords.pop();
@@ -422,6 +472,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
         const res = await this.getResponse(idURL);
         const model: IModel = res.data.modelInfo;
         model.key = model.modelId;
+        model.composedTrainResults = res.data.composedTrainResults;
         return model;
     }
 
@@ -469,7 +520,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
     private getModelsFromNextLink = async (link: string) => {
         const res = await this.getResponse(link);
         return {
-            nextList: res.data.modelList,
+            nextList: this.returnReadyModels(res.data.modelList),
             nextLink: res.data.nextLink,
         };
     }
@@ -525,7 +576,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
 
     private copyAndSort(modelList: IModel[], columnKey: string, isSortedDescending?: boolean): IModel[] {
         const key = columnKey;
-        if (key === strings.modelCompose.column.created.fieldName || key === strings.modelCompose.column.lastupdated.fieldName) {
+        if (key === strings.modelCompose.column.created.fieldName || key === strings.modelCompose.column.lastUpdated.fieldName) {
             return (modelList.slice(0)
             .sort((a, b): number => {
                 if (isSortedDescending) {
@@ -579,7 +630,7 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
     }
 
     private onComposeButtonClick = () => {
-        this.composeModalRef.current.open(this.selectedItems, this.cannotBeIncludedItems);
+        this.composeModalRef.current.open(this.selectedItems, this.cannotBeIncludedItems, true);
     }
 
     private onComposeConfirm = (composeModelName: string) => {
@@ -590,14 +641,46 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
         this.handleModelsCompose(selections, composeModelName);
     }
 
+    private addToRecentModels = async (modelToAdd: IRecentModel) => {
+        const recentModelRecords: IRecentModel[] = this.props.project.recentModelRecords ?
+            [...this.props.project.recentModelRecords] : [];
+
+        if (recentModelRecords.find((recentModel) => recentModel.modelInfo.modelId === modelToAdd.modelInfo.modelId)) {
+            if (modelToAdd.modelInfo.modelName) {
+                toast.success(interpolate(strings.modelCompose.modelView.recentModelsAlreadyContainsModel, {modelID: modelToAdd.modelInfo.modelName}));
+            } else {
+                toast.success(interpolate(strings.modelCompose.modelView.recentModelsAlreadyContainsModel, {modelID: modelToAdd.modelInfo.modelId}));
+            }
+            this.composeModalRef.current.close();
+            return;
+        }
+        recentModelRecords.unshift({...modelToAdd} as IRecentModel);
+        if (recentModelRecords.length > constants.recentModelRecordsCount) {
+            recentModelRecords.pop();
+        }
+
+        const updatedProject = {
+            ...this.props.project,
+            recentModelRecords,
+            predictModelId: modelToAdd.modelInfo.modelId,
+        };
+        this.composeModalRef.current.close();
+        if (modelToAdd.modelInfo.modelName) {
+            toast.success(interpolate(strings.modelCompose.modelView.addModelToRecentModels, {modelID: modelToAdd.modelInfo.modelName}));
+        } else {
+            toast.success(interpolate(strings.modelCompose.modelView.addModelToRecentModels, {modelID: modelToAdd.modelInfo.modelId}));
+        }
+        await this.props.actions.saveProject(updatedProject, false, false);
+    }
+
     private passSelectedItems = (Items: any[]) => {
         this.cannotBeIncludedItems = Items.filter((item: IModel) => item.status !== constants.statusCodeReady);
         this.selectedItems = Items.filter((item: IModel) => item.status === constants.statusCodeReady);
     }
 
     /**
-     * Poll function to repeatly check if request succeeded
-     * @param func - function that will be called repeatly
+     * Poll function to repeatedly check if request succeeded
+     * @param func - function that will be called repeatedly
      * @param timeout - timeout
      * @param interval - interval
      */
@@ -610,6 +693,10 @@ export default class ModelComposePage extends React.Component<IModelComposePageP
             ajax.then((response) => {
                 if (response.data.modelInfo.status.toLowerCase() === constants.statusCodeReady) {
                     resolve(response.data);
+                } else if (response.data.modelInfo.status.toLowerCase() === constants.statusCodeInvalid) {
+                    toast.error(strings.modelCompose.errors.failedCompose, { autoClose: false });
+                    this.setState({ isComposing: false });
+                    return;
                 } else if (Number(new Date()) < endTime) {
                     // If the request isn't succeeded and the timeout hasn't elapsed, go again
                     setTimeout(checkSucceeded, interval, resolve, reject);

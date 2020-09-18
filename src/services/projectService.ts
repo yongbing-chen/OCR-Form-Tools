@@ -97,12 +97,14 @@ export default class ProjectService implements IProjectService {
         }
 
         project = await encryptProject(project, securityToken);
-
-        await storageProvider.writeText(
-            `${project.name}${constants.projectFileExtension}`,
-            JSON.stringify(project, null, 4),
-        );
-
+        try {
+            await storageProvider.writeText(
+                `${project.name}${constants.projectFileExtension}`,
+                JSON.stringify(project, null, 4),
+            );
+        } catch (error) {
+            throw new Error(error);
+        }
         return project;
     }
 
@@ -163,7 +165,11 @@ export default class ProjectService implements IProjectService {
         const storageProvider = StorageProviderFactory.createFromConnection(project.sourceConnection);
         let isValid;
         try {
-            isValid = await storageProvider.isValidProjectConnection();
+            if (project.sourceConnection.providerType === "localFileSystemProxy") {
+                isValid = await storageProvider.isValidProjectConnection(project.folderPath);
+            } else {
+                isValid = await storageProvider.isValidProjectConnection();
+            }
         } catch {
             isValid = false;
         }

@@ -123,7 +123,7 @@ h4 {
 }
 
 .modal-list-container {
-    margin: 0.5rem;
+    margin-top: 1rem;
     max-height: 40vh;
     overflow-x: hidden;
 }
@@ -194,4 +194,17 @@ h4 {
     &::before {
         background: transparent;
     }
+}
+
+.model-information-container {
+    display: flex;
+    flex-flow: row wrap;
+}
+
+.model-information-prop {
+    min-width: 100px;
+}
+
+.composed-of-list .ms-DetailsHeader {
+    padding-top: 6px;
 }

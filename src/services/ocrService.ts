@@ -6,6 +6,7 @@ import { IProject } from "../models/applicationState";
 import { IStorageProvider, StorageProviderFactory } from "../providers/storage/storageProviderFactory";
 import { constants } from "../common/constants";
 import ServiceHelper from "./serviceHelper";
+import { strings } from "../common/strings";
 
 export enum OcrStatus {
     loadingFromAzureBlob,
@@ -46,11 +47,11 @@ export class OCRService {
             notifyStatusChanged(OcrStatus.loadingFromAzureBlob);
             ocrJson = await this.readOcrFile(ocrFileName);
             if (!this.isValidOcrFormat(ocrJson) || rewrite) {
-                ocrJson = await this.fetchOcrUriResult(filePath, ocrFileName);
+                ocrJson = await this.fetchOcrUriResult(filePath, fileName, ocrFileName);
             }
         } catch (e) {
             notifyStatusChanged(OcrStatus.runningOCR);
-            ocrJson = await this.fetchOcrUriResult(filePath, ocrFileName);
+            ocrJson = await this.fetchOcrUriResult(filePath, fileName, ocrFileName);
         } finally {
             notifyStatusChanged(OcrStatus.done);
         }
@@ -80,13 +81,11 @@ export class OCRService {
         }
     }
 
-    private fetchOcrUriResult = async (filePath: string, ocrFileName: string) => {
+    private fetchOcrUriResult = async (filePath: string, fileName: string, ocrFileName: string) => {
         try {
             let body;
             let headers;
             if (filePath.startsWith("file:")) {
-                const splitFilePath = filePath.split("/")
-                const fileName = splitFilePath[splitFilePath.length - 1];
                 const bodyAndType = await Promise.all(
                     [
                         this.storageProvider.readBinary(decodeURI(fileName)),
@@ -116,8 +115,12 @@ export class OCRService {
                     this.save(ocrFileName, data);
                     return data;
                 });
-        } catch (err) {
-            ServiceHelper.handleServiceError(err);
+        } catch (error) {
+            if (error?.toJSON()?.message === "Network Error" || error.response.status === 400) {
+                throw new Error(strings.errors.getOcrError.message);
+            } else {
+                throw new Error(error);
+            }
         }
     }
 

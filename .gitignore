@@ -38,3 +38,4 @@ secrets.sh
 es6-src/
 report/
 .vs
+debug.log

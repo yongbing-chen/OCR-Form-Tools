@@ -105,7 +105,9 @@ export default class HomePage extends React.Component<IHomePageProps, IHomePageS
                                 </a>
                                 <FilePicker ref={this.filePicker}
                                     onChange={this.onProjectFileUpload}
-                                    onError={this.onProjectFileUploadError} />
+                                    onError={this.onProjectFileUploadError}
+                                    accept={[".fott"]}
+                                />
                             </li>
                         }
                         <li>
@@ -162,9 +164,11 @@ export default class HomePage extends React.Component<IHomePageProps, IHomePageS
                 this.props.history.push(`/projects/${project.id}/edit`);
             }
         } catch (error) {
-            if (error instanceof AppError) {
-                console.error(error);
-                toast.error(`Project [${project.name}] ${error.message}`, { autoClose: 3000 });
+            if (error instanceof AppError && error.errorCode === ErrorCode.SecurityTokenNotFound) {
+                toast.error(strings.errors.securityTokenNotFound.message, { autoClose: 5000 });
+            }
+            if(error instanceof AppError && error.errorCode === ErrorCode.ProjectInvalidSecurityToken) {
+                toast.error(strings.errors.projectInvalidSecurityToken.message, { autoClose: 5000 });
             }
         }
     }
@@ -175,7 +179,8 @@ export default class HomePage extends React.Component<IHomePageProps, IHomePageS
             .find((securityToken) => securityToken.name === project.securityToken);
 
         if (!projectToken) {
-            throw new AppError(ErrorCode.SecurityTokenNotFound, "Security Token Not Found");
+            toast.error(strings.errors.securityTokenNotFound.message, { autoClose: 3000 });
+            return;
         }
 
         // Load project from storage provider to keep the project in latest state
